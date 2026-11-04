@@ -1,0 +1,340 @@
+// Penguen Okul — veri modeli
+// Geliştirme: SQLite. Production'a geçerken provider'ı "postgresql" yap ve DATABASE_URL'i güncelle.
+// Not: Para alanları Int (kuruş cinsinden) tutulur; SQLite Decimal desteklemez.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ───────────── Enums ─────────────
+
+enum Role {
+  STUDENT
+  TEACHER
+  ADMIN
+}
+
+enum TeacherStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+}
+
+enum LessonStatus {
+  REQUESTED // öğrenci talep etti, öğretmen yanıtı bekleniyor
+  CONFIRMED // öğretmen onayladı
+  REJECTED // öğretmen reddetti
+  EXPIRED // 24 saat içinde yanıt gelmedi
+  CANCELLED // iptal edildi
+  COMPLETED // ders yapıldı
+  NO_SHOW // katılım olmadı
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  CLOSED
+}
+
+// ───────────── Kullanıcılar ─────────────
+
+model User {
+  id                String   @id @default(cuid())
+  email             String   @unique
+  passwordHash      String
+  role              Role
+  emailVerifiedAt   DateTime?
+  twoFactorSecret   String? // Admin TOTP (otplib)
+  twoFactorEnabled  Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  student        StudentProfile?
+  teacher        TeacherProfile?
+  sentMessages     Message[]       @relation("MessageSender")
+  receivedMessages Message[]       @relation("MessageReceiver")
+  notifications    Notification[]
+  tickets          SupportTicket[]
+  ticketMessages   SupportMessage[]
+  auditLogs        AuditLog[]
+}
+
+model StudentProfile {
+  id           String  @id @default(cuid())
+  userId       String  @unique
+  user         User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name         String
+  phone        String?
+  grade        String? // 5, 6, ... 12, mezun
+  targetExam   String? // YKS, LGS, KPSS...
+  parentName   String?
+  parentPhone  String?
+  hasUsedTrial Boolean @default(false)
+
+  lessons   Lesson[]
+  purchases Purchase[]
+  reviews   Review[]
+}
+
+model TeacherProfile {
+  id             String        @id @default(cuid())
+  userId         String        @unique
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name           String
+  bio            String?
+  osymScore      Float?
+  photo          String?
+  hourlyRate     Int           @default(0) // kuruş
+  status         TeacherStatus @default(PENDING)
+  commissionRate Float         @default(0.2) // 0.2 = %20
+
+  subjects     TeacherSubject[]
+  availability Availability[]
+  lessons      Lesson[]
+  reviews      Review[]
+}
+
+// ───────────── Ders içeriği ─────────────
+
+model Subject {
+  id       String  @id @default(cuid())
+  name     String
+  slug     String  @unique
+  topics   Topic[]
+  teachers TeacherSubject[]
+}
+
+model Topic {
+  id        String  @id @default(cuid())
+  name      String
+  subjectId String
+  subject   Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  lessons   Lesson[]
+
+  @@index([subjectId])
+}
+
+model TeacherSubject {
+  teacherId String
+  subjectId String
+  teacher   TeacherProfile @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  subject   Subject        @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
+  @@id([teacherId, subjectId])
+}
+
+// ───────────── Müsaitlik ve dersler ─────────────
+
+model Availability {
+  id           String   @id @default(cuid())
+  teacherId    String
+  teacher      TeacherProfile @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  dayOfWeek    Int? // 0-6, tekrarlayan için
+  specificDate DateTime? // tek seferlik için
+  startTime    String // "HH:mm"
+  endTime      String // "HH:mm"
+  isRecurring  Boolean  @default(true)
+
+  @@index([teacherId])
+}
+
+model Lesson {
+  id          String       @id @default(cuid())
+  studentId   String
+  teacherId   String
+  topicId     String?
+  purchaseId  String?
+  scheduledAt DateTime
+  durationMin Int          @default(60)
+  status      LessonStatus @default(REQUESTED)
+  isTrial     Boolean      @default(false)
+  meetingLink String?
+  notes       String?
+  createdAt   DateTime     @default(now())
+
+  // Çifte rezervasyon koruması: aktif dersler için "teacherId|scheduledAt" yazılır,
+  // iptal/ret/süre dolumunda null yapılır. NULL değerler unique'i ihlal etmez.
+  slotKey String? @unique
+
+  student  StudentProfile @relation(fields: [studentId], references: [id])
+  teacher  TeacherProfile @relation(fields: [teacherId], references: [id])
+  topic    Topic?         @relation(fields: [topicId], references: [id])
+  purchase Purchase?      @relation(fields: [purchaseId], references: [id])
+
+  request  LessonRequest?
+  payments Payment[]
+  review   Review?
+  messages Message[]
+
+  @@index([studentId])
+  @@index([teacherId, scheduledAt])
+}
+
+model LessonRequest {
+  id          String   @id @default(cuid())
+  lessonId    String   @unique
+  lesson      Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  requestedAt DateTime @default(now())
+  expiresAt   DateTime // requestedAt + 24 saat
+  respondedAt DateTime?
+  reason      String? // reddedildiyse gerekçe
+
+  @@index([expiresAt])
+}
+
+// ───────────── Paket ve ödeme ─────────────
+
+model Package {
+  id             String  @id @default(cuid())
+  name           String
+  lessonCount    Int
+  durationMonths Int
+  price          Int // kuruş
+  isActive       Boolean @default(true)
+  purchases      Purchase[]
+}
+
+model Purchase {
+  id               String   @id @default(cuid())
+  studentId        String
+  packageId        String
+  purchasedAt      DateTime @default(now())
+  remainingLessons Int
+  expiresAt        DateTime
+
+  student  StudentProfile @relation(fields: [studentId], references: [id])
+  package  Package        @relation(fields: [packageId], references: [id])
+  lessons  Lesson[]
+  payments Payment[]
+
+  @@index([studentId])
+}
+
+model Payment {
+  id          String        @id @default(cuid())
+  purchaseId  String?
+  lessonId    String?
+  amount      Int // kuruş
+  commission  Int           @default(0) // platform komisyonu, ayrı kayıt
+  status      PaymentStatus @default(PENDING)
+  providerRef String?
+  paidAt      DateTime?
+  createdAt   DateTime      @default(now())
+
+  purchase Purchase? @relation(fields: [purchaseId], references: [id])
+  lesson   Lesson?   @relation(fields: [lessonId], references: [id])
+  invoice  Invoice?
+}
+
+model Invoice {
+  id            String   @id @default(cuid())
+  paymentId     String   @unique
+  payment       Payment  @relation(fields: [paymentId], references: [id])
+  invoiceNumber String   @unique
+  pdfUrl        String?
+  issuedAt      DateTime @default(now())
+}
+
+// ───────────── Etkileşim ─────────────
+
+model Review {
+  id        String   @id @default(cuid())
+  lessonId  String   @unique
+  studentId String
+  teacherId String
+  rating    Int // 1-5
+  comment   String?
+  createdAt DateTime @default(now())
+
+  lesson  Lesson         @relation(fields: [lessonId], references: [id])
+  student StudentProfile @relation(fields: [studentId], references: [id])
+  teacher TeacherProfile @relation(fields: [teacherId], references: [id])
+
+  @@index([teacherId])
+}
+
+model Message {
+  id         String   @id @default(cuid())
+  senderId   String
+  receiverId String
+  lessonId   String?
+  content    String
+  sentAt     DateTime @default(now())
+  read       Boolean  @default(false)
+
+  sender   User    @relation("MessageSender", fields: [senderId], references: [id])
+  receiver User    @relation("MessageReceiver", fields: [receiverId], references: [id])
+  lesson   Lesson? @relation(fields: [lessonId], references: [id])
+
+  @@index([receiverId, read])
+}
+
+model Notification {
+  id           String    @id @default(cuid())
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type         String
+  title        String
+  body         String
+  isRead       Boolean   @default(false)
+  scheduledFor DateTime?
+  sentAt       DateTime?
+  createdAt    DateTime  @default(now())
+
+  @@index([userId, isRead])
+  @@index([scheduledFor])
+}
+
+// ───────────── Destek ve yönetim ─────────────
+
+model SupportTicket {
+  id        String       @id @default(cuid())
+  userId    String
+  user      User         @relation(fields: [userId], references: [id])
+  subject   String
+  status    TicketStatus @default(OPEN)
+  createdAt DateTime     @default(now())
+  messages  SupportMessage[]
+}
+
+model SupportMessage {
+  id        String        @id @default(cuid())
+  ticketId  String
+  ticket    SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User          @relation(fields: [authorId], references: [id])
+  content   String
+  createdAt DateTime      @default(now())
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  adminId    String
+  admin      User     @relation(fields: [adminId], references: [id])
+  action     String
+  targetType String
+  targetId   String
+  before     Json?
+  after      Json?
+  createdAt  DateTime @default(now())
+
+  @@index([targetType, targetId])
+}
+
+// Anahtar-değer ayarlar: cancelWindowHours, defaultCommissionRate, trialLessonMinutes ...
+model Setting {
+  key   String @id
+  value String
+}
