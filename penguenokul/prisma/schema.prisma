@@ -69,6 +69,21 @@ model User {
   tickets          SupportTicket[]
   ticketMessages   SupportMessage[]
   auditLogs        AuditLog[]
+  payouts          Payout[]
+  passwordResetTokens PasswordResetToken[]
+}
+
+// Şifre sıfırlama: ham token e-postayla gider, veritabanında yalnızca SHA-256 özeti tutulur.
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
 }
 
 model StudentProfile {
@@ -82,10 +97,14 @@ model StudentProfile {
   parentName   String?
   parentPhone  String?
   hasUsedTrial Boolean @default(false)
+  smsConsent   Boolean @default(false) // SMS hatırlatma için açık rıza
 
   lessons   Lesson[]
   purchases Purchase[]
+  payments  Payment[]
   reviews   Review[]
+  homework  Homework[]
+  notes     TeacherNote[]
 }
 
 model TeacherProfile {
@@ -104,6 +123,10 @@ model TeacherProfile {
   availability Availability[]
   lessons      Lesson[]
   reviews      Review[]
+  homework     Homework[]
+  notes        TeacherNote[]
+  earnings     LessonEarning[]
+  payouts      Payout[]
 }
 
 // ───────────── Ders içeriği ─────────────
@@ -174,7 +197,7 @@ model Lesson {
   purchase Purchase?      @relation(fields: [purchaseId], references: [id])
 
   request  LessonRequest?
-  payments Payment[]
+  earning  LessonEarning?
   review   Review?
   messages Message[]
 
@@ -204,6 +227,7 @@ model Package {
   price          Int // kuruş
   isActive       Boolean @default(true)
   purchases      Purchase[]
+  payments       Payment[]
 }
 
 model Purchase {
@@ -213,6 +237,7 @@ model Purchase {
   purchasedAt      DateTime @default(now())
   remainingLessons Int
   expiresAt        DateTime
+  unitPrice        Int      @default(0) // kuruş: ders başına brüt tutar (ödeme / ders sayısı), satın alma anında sabitlenir
 
   student  StudentProfile @relation(fields: [studentId], references: [id])
   package  Package        @relation(fields: [packageId], references: [id])
@@ -223,19 +248,25 @@ model Purchase {
 }
 
 model Payment {
-  id          String        @id @default(cuid())
-  purchaseId  String?
-  lessonId    String?
-  amount      Int // kuruş
-  commission  Int           @default(0) // platform komisyonu, ayrı kayıt
-  status      PaymentStatus @default(PENDING)
-  providerRef String?
-  paidAt      DateTime?
-  createdAt   DateTime      @default(now())
+  id            String        @id @default(cuid())
+  studentId     String
+  packageId     String
+  purchaseId    String? // ödeme başarılı olunca oluşan satın alma
+  amount        Int // kuruş: ödeme anındaki paket fiyatı
+  status        PaymentStatus @default(PENDING)
+  provider      String // mock | iyzico | stripe ...
+  providerRef   String?       @unique
+  failureReason String?
+  paidAt        DateTime?
+  createdAt     DateTime      @default(now())
 
-  purchase Purchase? @relation(fields: [purchaseId], references: [id])
-  lesson   Lesson?   @relation(fields: [lessonId], references: [id])
+  student  StudentProfile @relation(fields: [studentId], references: [id])
+  package  Package        @relation(fields: [packageId], references: [id])
+  purchase Purchase?      @relation(fields: [purchaseId], references: [id])
   invoice  Invoice?
+
+  @@index([studentId])
+  @@index([status, createdAt])
 }
 
 model Invoice {
@@ -243,8 +274,50 @@ model Invoice {
   paymentId     String   @unique
   payment       Payment  @relation(fields: [paymentId], references: [id])
   invoiceNumber String   @unique
-  pdfUrl        String?
+  buyerName     String // belge anındaki ad (sonradan değişse de belge sabit kalır)
+  description   String // ör. "3 Aylık Paket (24 ders)"
   issuedAt      DateTime @default(now())
+}
+
+// Yıllık fatura numarası gibi atomik sayaçlar
+model Counter {
+  key   String @id
+  value Int    @default(0)
+}
+
+// Komisyon şeffaflığı: her tamamlanan paket dersi için brüt / komisyon / öğretmen payı ayrı kaydedilir.
+model LessonEarning {
+  id             String   @id @default(cuid())
+  lessonId       String   @unique
+  teacherId      String
+  purchaseId     String?
+  gross          Int // kuruş: öğrencinin bu ders için ödediği
+  commissionRate Float // o anki oran (0.2 = %20), sonradan değişse de kayıt sabit kalır
+  commission     Int // platform payı
+  net            Int // öğretmen payı = gross - commission
+  payoutId       String? // dolu ise öğretmene ödenmiş
+  createdAt      DateTime @default(now())
+
+  lesson  Lesson         @relation(fields: [lessonId], references: [id])
+  teacher TeacherProfile @relation(fields: [teacherId], references: [id])
+  payout  Payout?        @relation(fields: [payoutId], references: [id])
+
+  @@index([teacherId, payoutId])
+}
+
+model Payout {
+  id        String   @id @default(cuid())
+  teacherId String
+  adminId   String
+  amount    Int // kuruş
+  note      String?
+  createdAt DateTime @default(now())
+
+  teacher  TeacherProfile  @relation(fields: [teacherId], references: [id])
+  admin    User            @relation(fields: [adminId], references: [id])
+  earnings LessonEarning[]
+
+  @@index([teacherId])
 }
 
 // ───────────── Etkileşim ─────────────
@@ -290,14 +363,71 @@ model Notification {
   body         String
   isRead       Boolean   @default(false)
   scheduledFor DateTime?
-  sentAt       DateTime?
+  sentAt       DateTime? // e-postanın gönderildiği an
   createdAt    DateTime  @default(now())
+
+  // Zamanlanmış işler tekrar çalışsa da aynı bildirim ikinci kez oluşmasın diye
+  // ("reminder:1h:<lessonId>:<userId>" gibi). Unique; null olanlar çakışmaz.
+  dedupeKey    String?   @unique
 
   @@index([userId, isRead])
   @@index([scheduledFor])
 }
 
+// ───────────── Öğrenci takibi ─────────────
+
+// Öğretmenin bir öğrenci hakkındaki özel notları; öğrenci göremez.
+model TeacherNote {
+  id        String         @id @default(cuid())
+  teacherId String
+  studentId String
+  content   String
+  createdAt DateTime       @default(now())
+  teacher   TeacherProfile @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  student   StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([teacherId, studentId])
+}
+
+model Homework {
+  id          String         @id @default(cuid())
+  teacherId   String
+  studentId   String
+  title       String
+  description String?
+  dueAt       DateTime
+  completedAt DateTime?
+  createdAt   DateTime       @default(now())
+  teacher     TeacherProfile @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  student     StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([studentId, completedAt])
+  @@index([teacherId, studentId])
+}
+
 // ───────────── Destek ve yönetim ─────────────
+
+model Announcement {
+  id        String   @id @default(cuid())
+  title     String
+  body      String
+  audience  String   @default("ALL") // ALL | STUDENT | TEACHER
+  published Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  @@index([published])
+}
+
+model FaqItem {
+  id        String   @id @default(cuid())
+  question  String
+  answer    String
+  order     Int      @default(0)
+  published Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  @@index([published, order])
+}
 
 model SupportTicket {
   id        String       @id @default(cuid())

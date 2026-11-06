@@ -1,10 +1,8 @@
+import type { Metadata } from "next";
+import ForgotPasswordForm from "@/components/auth/ForgotPasswordForm";
+
+export const metadata: Metadata = { title: "Şifremi unuttum" };
+
 export default function SifremiUnuttumPage() {
-  return (
-    <section>
-      <h1 style={{ fontSize: "var(--text-2xl)", marginTop: "var(--space-5)" }}>Şifremi unuttum</h1>
-      <p style={{ color: "var(--text-muted)" }}>
-        Form, NextAuth adımında eklenecek.
-      </p>
-    </section>
-  );
+  return <ForgotPasswordForm />;
 }

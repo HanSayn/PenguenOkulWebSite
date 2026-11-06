@@ -10,3 +10,10 @@ export const prisma =
   });
 
 if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
+
+// $transaction(async (tx) => ...) içindeki istemci tipi. PrismaClient'ın kendisi değildir:
+// bağlantı yönetimi metotları yoktur, bu yüzden callback parametresi `typeof prisma` olarak yazılamaz.
+export type Tx = Omit<
+  PrismaClient,
+  "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends"
+>;

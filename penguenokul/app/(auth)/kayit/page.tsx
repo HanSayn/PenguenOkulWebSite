@@ -1,10 +1,14 @@
-export default function KayitPage() {
-  return (
-    <section>
-      <h1 style={{ fontSize: "var(--text-2xl)", marginTop: "var(--space-5)" }}>Kayıt ol</h1>
-      <p style={{ color: "var(--text-muted)" }}>
-        Form, NextAuth adımında eklenecek.
-      </p>
-    </section>
-  );
+import type { Metadata } from "next";
+import RegisterForm from "@/components/auth/RegisterForm";
+
+export const metadata: Metadata = { title: "Kayıt ol" };
+
+export default function KayitPage({
+  searchParams,
+}: {
+  searchParams: { rol?: string };
+}) {
+  // Landing page'deki bağlantılar ?rol=ogrenci | ogretmen gönderir
+  const defaultRole = searchParams.rol === "ogretmen" ? "TEACHER" : "STUDENT";
+  return <RegisterForm defaultRole={defaultRole} />;
 }

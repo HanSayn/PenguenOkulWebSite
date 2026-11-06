@@ -86,7 +86,7 @@ export default function LandingPage() {
       </main>
 
       <footer className={styles.footer}>
-        <div className="container">© {new Date().getFullYear()} Penguen Okul</div>
+        <div className="container">© {new Date().getFullYear()} Penguen Okul · <Link href="/sss">Sık sorulan sorular</Link> · <Link href="/gizlilik">Gizlilik ve KVKK</Link></div>
       </footer>
     </>
   );

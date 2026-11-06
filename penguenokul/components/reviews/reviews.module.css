@@ -1,0 +1,15 @@
+.form { display: grid; gap: var(--space-2); margin-top: var(--space-2); }
+.stars { border: 0; padding: 0; margin: 0; display: flex; flex-direction: row-reverse; justify-content: flex-end; gap: 2px; align-items: center; }
+.legend { float: left; margin-right: var(--space-3); font-size: var(--text-sm); color: var(--text-muted); padding: 0; }
+.star { cursor: pointer; font-size: 1.5rem; line-height: 1; color: var(--border); position: relative; }
+.star input { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+.star:hover, .star:hover ~ .star, .star:has(input:checked), .star:has(input:checked) ~ .star { color: #e0a100; }
+.star:has(input:focus-visible) { outline: 2px solid var(--primary); border-radius: 4px; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.text { width: 100%; padding: var(--space-2); border: 1px solid var(--border); border-radius: var(--radius-sm); font: inherit; background: var(--surface); color: var(--text); }
+.err { color: var(--color-danger); font-size: var(--text-sm); margin: 0; }
+.thanks { color: var(--color-success); font-size: var(--text-sm); margin: 0; }
+.static { color: #e0a100; letter-spacing: 1px; }
+.off { color: var(--border); }
+.reviewItem { display: grid; gap: 2px; padding: var(--space-3) 0; border-top: 1px solid var(--border); }
+.reviewMeta { color: var(--text-muted); font-size: var(--text-sm); }

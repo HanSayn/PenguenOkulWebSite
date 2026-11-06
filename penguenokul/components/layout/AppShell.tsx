@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { logoutAction } from "@/lib/actions";
 import Sidebar, { type NavItem } from "./Sidebar";
 import styles from "./AppShell.module.css";
 
@@ -22,6 +23,9 @@ export default function AppShell({ roleLabel, items, children }: Props) {
       <div className={styles.main}>
         <header className={styles.topbar}>
           <span className={styles.topTitle}>{roleLabel} paneli</span>
+          <form action={logoutAction}>
+            <button type="submit" className={styles.logout}>Çıkış yap</button>
+          </form>
         </header>
         <main className={styles.content}>{children}</main>
       </div>

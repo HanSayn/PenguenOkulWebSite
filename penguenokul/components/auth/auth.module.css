@@ -1,0 +1,100 @@
+.form {
+  display: grid;
+  gap: var(--space-4);
+  margin-top: var(--space-5);
+}
+
+.title {
+  font-size: var(--text-2xl);
+  margin: var(--space-5) 0 0;
+}
+
+.field {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.label {
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.input {
+  width: 100%;
+  padding: var(--space-3);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+}
+.input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: var(--focus-ring);
+}
+.input[aria-invalid="true"] {
+  border-color: var(--color-danger);
+}
+
+.error {
+  color: var(--color-danger);
+  font-size: var(--text-sm);
+  margin: 0;
+}
+
+.alert {
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  margin: 0;
+}
+.alertError {
+  background: color-mix(in srgb, var(--color-danger) 14%, transparent);
+  color: var(--color-danger);
+}
+.alertSuccess {
+  background: color-mix(in srgb, var(--color-success) 16%, transparent);
+  color: var(--color-success);
+}
+
+.button {
+  padding: var(--space-3) var(--space-5);
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--accent);
+  color: var(--color-ink-900);
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.button:hover:not(:disabled) { background: var(--accent-hover); }
+.button:disabled { opacity: 0.6; cursor: wait; }
+
+.roles {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2);
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+.roleOption {
+  display: block;
+  text-align: center;
+  padding: var(--space-3);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-weight: 600;
+}
+.roleOption:has(input:checked) {
+  border-color: var(--primary);
+  background: var(--surface-muted);
+}
+.roleOption:has(input:focus-visible) { box-shadow: var(--focus-ring); }
+.roleOption input { position: absolute; opacity: 0; pointer-events: none; }
+
+.footer {
+  margin: var(--space-4) 0 0;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}

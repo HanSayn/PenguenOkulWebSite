@@ -75,6 +75,19 @@
 }
 .topTitle { font-weight: 600; color: var(--text-muted); }
 
+.topbar { justify-content: space-between; }
+
+.logout {
+  background: transparent;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-full);
+  padding: var(--space-1) var(--space-4);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+.logout:hover { background: var(--surface-muted); }
+
 .content {
   padding: var(--space-5);
 }
