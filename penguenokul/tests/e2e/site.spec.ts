@@ -27,6 +27,36 @@ test.describe("herkese açık site", () => {
     expect(robots).toContain("Disallow: /admin");
   });
 
+  test("CSP: nonce'lu, unsafe-inline yok, hiçbir sayfada ihlal ya da bozulma yok", async ({ page, request }) => {
+    const res = await request.get("/");
+    const csp = res.headers()["content-security-policy"];
+    const script = csp.split("; ").find((d) => d.startsWith("script-src"))!;
+    const nonce = /'nonce-([^']+)'/.exec(script)?.[1];
+    expect(nonce).toBeTruthy();
+    expect(script).not.toContain("unsafe-inline");
+    // Next'in kendi betikleri aynı nonce ile işaretlenmiş olmalı
+    const html = await res.text();
+    expect(html).toContain(`nonce="${nonce}"`);
+    // Her istekte farklı nonce
+    const again = (await request.get("/")).headers()["content-security-policy"];
+    expect(again).not.toBe(csp);
+
+    const violations: string[] = [];
+    page.on("console", (m) => { if (/content security policy|refused to (execute|load)/i.test(m.text())) violations.push(m.text()); });
+    page.on("pageerror", (e) => violations.push(String(e)));
+    for (const path of ["/", "/giris", "/kayit", "/sss", "/gizlilik", "/sifremi-unuttum"]) {
+      await page.goto(path);
+      await page.waitForLoadState("networkidle");
+    }
+    // Sayfa gerçekten etkileşimli (hidrasyon çalıştı): hatalı girişte sunucu eylemi sonucu görünür
+    await page.goto("/giris");
+    await page.locator("#email").fill(`csp-${Date.now()}@e2e.test`);
+    await page.locator("#password").fill("yanlis-sifre-1");
+    await page.locator("button[type=submit]").click();
+    await expect(page.locator("p[role=alert]")).toBeVisible();
+    expect(violations).toEqual([]);
+  });
+
   test("mobil görünümde yatay taşma yok", async ({ browser }) => {
     const ctx = await browser.newContext({ viewport: { width: 390, height: 800 }, isMobile: true });
     const page = await ctx.newPage();

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import localFont from "next/font/local";
 import "../styles/globals.css";
 
@@ -29,6 +30,9 @@ export const metadata: Metadata = {
 export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  // Nonce her istekte değiştiği için sayfalar istek anında üretilmeli; headers() okumak bunu sağlar ve
+  // Next'in kendi betiklerine middleware'in ürettiği nonce'u uygulamasını mümkün kılar.
+  headers();
   return (
     <html lang="tr" className={`${geistSans.variable} ${geistMono.variable}`}>
       <body>{children}</body>

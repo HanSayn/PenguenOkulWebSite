@@ -1,23 +1,9 @@
 const isProd = process.env.NODE_ENV === "production";
 const jitsiHost = process.env.JITSI_DOMAIN || "meet.jit.si";
 
-// Next.js satır içi betik kullandığı için script-src 'unsafe-inline' gerekir (nonce'lu CSP ileride eklenebilir).
-// form-action bilerek yok: ödeme sağlayıcısının sayfasına yönlendirme bazı tarayıcılarda engellenirdi.
-const csp = [
-  "default-src 'self'",
-  `script-src 'self' 'unsafe-inline'${isProd ? "" : " 'unsafe-eval'"}`,
-  "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob:",
-  "font-src 'self' data:",
-  "connect-src 'self'",
-  `frame-src https://${jitsiHost}`,
-  "frame-ancestors 'none'",
-  "base-uri 'self'",
-  "object-src 'none'",
-].join("; ");
+// İçerik Güvenlik Politikası (CSP) nonce gerektirdiği için istek başına middleware.ts içinde üretilir (lib/csp.ts).
 
 const securityHeaders = [
-  { key: "Content-Security-Policy", value: csp },
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "X-Frame-Options", value: "DENY" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
