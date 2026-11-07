@@ -34,7 +34,7 @@ E-posta gönderimi için `SMTP_*` boşsa bağlantılar (şifre sıfırlama vb.) 
 
 1. **Veritabanı:** yönetilen PostgreSQL (Neon, Supabase, Railway…). `DATABASE_URL`'i ayarla, `npm run db:deploy` ile tabloları oluştur. `db seed` çalıştırma ya da yalnızca bir admin hesabı oluştur; demo şifrelerini canlıda kullanma.
 2. **Ortam değişkenleri:** `.env.example` içindeki hepsi. `AUTH_SECRET` yeni üretilmeli, `APP_URL` gerçek alan adı olmalı.
-3. **Ödeme:** `PAYMENT_PROVIDER` ve sağlayıcı anahtarları. Test ödemesi canlıda kapalıdır (`ALLOW_MOCK_PAYMENTS` boş bırak). Gerçek sağlayıcı bağlanmadan canlıya para alınamaz.
+3. **Ödeme:** iyzico için `PAYMENT_PROVIDER="iyzico"`, `IYZICO_API_KEY`, `IYZICO_SECRET_KEY`, `IYZICO_BASE_URL` (sandbox/canlı) ve herkese açık https `APP_URL`. Önce sandbox'ta bir deneme ödemesi yap; bağdaştırıcı iyzico belgelerine göre yazıldı ama gerçek sandbox ile henüz denenmedi. Ödeme sonucu iyzico'dan sunucu tarafında sorgulanır; 5 dakikada bir çalışan cron işi (`/api/cron/run`) dönüşü gelmeyen ödemeleri de kesinleştirir. Test ödemesi canlıda kapalıdır (`ALLOW_MOCK_PAYMENTS` boş bırak). Gerçek sağlayıcı bağlanmadan canlıya para alınamaz.
 4. **Zamanlanmış işler:** 5 dakikada bir `GET /api/cron/run` (`Authorization: Bearer $CRON_SECRET`). Vercel Cron ya da harici bir zamanlayıcı kullanılabilir. Hatırlatmalar, süresi dolan talepler, otomatik ders tamamlama ve hız sınırı temizliği buna bağlıdır.
 5. **E-posta:** SMTP bilgilerini gir (Resend, Brevo vb.).
 6. **Ters vekil:** hız sınırları istemci adresini `x-forwarded-for`'dan okur. Vercel/nginx gibi bir vekil arkasında çalıştır.

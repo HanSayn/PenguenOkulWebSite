@@ -2,6 +2,8 @@ import { prisma, type Tx } from "@/lib/prisma";
 import { recordEarning } from "@/lib/earnings";
 import { sendSms } from "@/lib/sms";
 import { TIMEOUT_REASON } from "@/lib/payments/constants";
+import { getPaymentProvider } from "@/lib/payments";
+import { settleProviderEvent } from "@/lib/payments/settle";
 import { purgeExpiredRateLimits } from "@/lib/rate-limit";
 import { notifyUser } from "@/lib/notify";
 import { formatDateTime, formatDay } from "@/lib/format";
@@ -18,6 +20,7 @@ export type JobReport = {
   packageWarnings: number;
   completedLessons: number;
   expiredPayments: number;
+  reconciledPayments: number;
   purgedRateLimits: number;
 };
 
@@ -201,6 +204,42 @@ async function completePastLessons(now: Date): Promise<number> {
   return completed;
 }
 
+// ───────────── Ödeme mutabakatı ─────────────
+
+const RECONCILE_MIN_AGE_MIN = 3; // kullanıcı ödeme sayfasındayken karışma
+const RECONCILE_WINDOW_H = 24;
+
+// Kullanıcı ödemeyi yapıp tarayıcıyı kapatırsa geri dönüş hiç gelmez; para çekilmiş ama paket tanımsız kalırdı.
+// Bekleyen (ve zaman aşımına düşmüş) gerçek sağlayıcı ödemelerinin durumunu sağlayıcıdan sorar, başarılıysa kesinleştirir.
+async function reconcilePayments(now: Date): Promise<number> {
+  const candidates = (await prisma.payment.findMany({
+    where: {
+      provider: { not: "mock" },
+      providerRef: { not: null },
+      createdAt: { gte: new Date(now.getTime() - RECONCILE_WINDOW_H * 60 * MIN), lte: new Date(now.getTime() - RECONCILE_MIN_AGE_MIN * MIN) },
+      OR: [{ status: "PENDING" }, { status: "FAILED", failureReason: { startsWith: TIMEOUT_REASON } }],
+    },
+    select: { id: true, provider: true, providerRef: true },
+    take: 50,
+  })) as { id: string; provider: string; providerRef: string }[];
+
+  let count = 0;
+  for (const p of candidates) {
+    try {
+      const provider = getPaymentProvider(p.provider);
+      if (!provider.queryStatus) continue;
+      const event = await provider.queryStatus(p.providerRef);
+      if (event.outcome !== "SUCCEEDED") continue; // başarısızlık kararını zaman aşımı işi verir
+      const res = await settleProviderEvent(event);
+      if (res.changed) count++;
+    } catch (err) {
+      // Henüz ödenmemiş oturumlar sağlayıcıda hata döndürebilir; sonraki turda yeniden denenir
+      console.warn(`[jobs] mutabakat ${p.id}: ${(err as Error).message}`);
+    }
+  }
+  return count;
+}
+
 // ───────────── Yarım kalan ödemeleri kapat ─────────────
 
 const PAYMENT_TIMEOUT_MIN = 120;
@@ -232,9 +271,11 @@ export async function runScheduledJobs(now = new Date()): Promise<JobReport> {
   const reminders = await settle("sendLessonReminders", () => sendLessonReminders(now));
   const packageWarnings = await settle("warnExpiringPackages", () => warnExpiringPackages(now));
   const completedLessons = await settle("completePastLessons", () => completePastLessons(now));
+  // Mutabakat, zaman aşımından ÖNCE: gerçekten ödenmiş bir ödeme yanlışlıkla "başarısız" yazılmasın
+  const reconciledPayments = await settle("reconcilePayments", () => reconcilePayments(now));
   const expiredPayments = await settle("expirePendingPayments", () => expirePendingPayments(now));
 
   const purgedRateLimits = await settle("purgeExpiredRateLimits", () => purgeExpiredRateLimits(now));
 
-  return { expiredRequests, reminders, packageWarnings, completedLessons, expiredPayments, purgedRateLimits };
+  return { expiredRequests, reminders, packageWarnings, completedLessons, expiredPayments, reconciledPayments, purgedRateLimits };
 }

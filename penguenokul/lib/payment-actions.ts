@@ -8,6 +8,7 @@ import { logAudit } from "@/lib/audit";
 import { notifyUser } from "@/lib/notify";
 import { getPaymentProvider, isMockEnabled, ProviderUnavailableError } from "@/lib/payments";
 import { settlePayment } from "@/lib/payments/settle";
+import { clientIp } from "@/lib/rate-limit";
 
 const MAX_PENDING_PER_HOUR = 3;
 
@@ -44,7 +45,7 @@ export async function startCheckoutAction(formData: FormData): Promise<void> {
       amount: pkg.price,
       currency: "TRY",
       description: `${pkg.name} (${pkg.lessonCount} ders)`,
-      buyer: { id: user.id, email: user.email ?? "", name: student.name },
+      buyer: { id: user.id, email: user.email ?? "", name: student.name, phone: student.phone, ip: clientIp() },
     });
     await prisma.payment.update({ where: { id: payment.id }, data: { providerRef: session.providerRef } });
     redirectUrl = session.redirectUrl;
@@ -93,7 +94,7 @@ export async function refundPaymentAction(formData: FormData): Promise<void> {
 
   let refundRef: string;
   try {
-    ({ refundRef } = await getPaymentProvider(payment.provider).refund({ providerRef: payment.providerRef, amount: payment.amount }));
+    ({ refundRef } = await getPaymentProvider(payment.provider).refund({ providerRef: payment.providerRef, providerPaymentId: payment.providerPaymentId, amount: payment.amount }));
   } catch (err) {
     console.error("iade başarısız", err);
     redirect("/admin/odemeler?hata=saglayici");

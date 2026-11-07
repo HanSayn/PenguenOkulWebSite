@@ -257,6 +257,7 @@ model Payment {
   status        PaymentStatus @default(PENDING)
   provider      String // mock | iyzico | stripe ...
   providerRef   String?       @unique
+  providerPaymentId String? // sağlayıcının ödeme kimliği (iade için gerekir; iyzico paymentId)
   failureReason String?
   paidAt        DateTime?
   createdAt     DateTime      @default(now())

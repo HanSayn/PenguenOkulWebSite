@@ -2,6 +2,7 @@ import { prisma, type Tx } from "@/lib/prisma";
 import { notifyUser } from "@/lib/notify";
 
 import { TIMEOUT_REASON } from "@/lib/payments/constants";
+import type { WebhookResult } from "@/lib/payments/types";
 
 type Outcome = "SUCCEEDED" | "FAILED";
 
@@ -27,8 +28,9 @@ async function nextInvoiceNumber(tx: Tx, now: Date): Promise<string> {
 export async function settlePayment(
   providerRef: string,
   outcome: Outcome,
-  failureReason?: string
-): Promise<{ found: boolean; changed: boolean; status?: string; paymentId?: string }> {
+  failureReason?: string,
+  extra?: { providerPaymentId?: string }
+): Promise<{ found: boolean; changed: boolean; status?: string; paymentId?: string; mismatch?: boolean }> {
   const result = await prisma.$transaction(async (tx: Tx) => {
     const payment = await tx.payment.findUnique({
       where: { providerRef },
@@ -47,7 +49,7 @@ export async function settlePayment(
       where: { id: payment.id, status: payment.status, ...(lateSuccess ? { failureReason: payment.failureReason } : {}) },
       data:
         outcome === "SUCCEEDED"
-          ? { status: "PAID", paidAt: now, failureReason: null }
+          ? { status: "PAID", paidAt: now, failureReason: null, ...(extra?.providerPaymentId ? { providerPaymentId: extra.providerPaymentId } : {}) }
           : { status: "FAILED", failureReason: failureReason ?? "Ödeme tamamlanamadı" },
     });
     if (claimed.count === 0) return { found: true as const, changed: false, status: "PAID", paymentId: payment.id };
@@ -101,4 +103,23 @@ export async function settlePayment(
   return result.found
     ? { found: true, changed: result.changed, status: result.status, paymentId: result.paymentId }
     : { found: false, changed: false };
+}
+
+// Sağlayıcıdan gelen (doğrulanmış) olayı işler: tutar kontrolü + idempotent kesinleştirme.
+// Webhook/geri dönüş rotası ve mutabakat işi aynı yolu kullanır.
+export async function settleProviderEvent(event: WebhookResult) {
+  if (event.outcome === "PENDING") {
+    const p = await prisma.payment.findUnique({ where: { providerRef: event.providerRef }, select: { id: true, status: true } });
+    return p ? { found: true, changed: false, status: p.status, paymentId: p.id } : { found: false, changed: false };
+  }
+
+  if (event.outcome === "SUCCEEDED" && event.amount !== undefined) {
+    const p = await prisma.payment.findUnique({ where: { providerRef: event.providerRef }, select: { id: true, status: true, amount: true } });
+    if (p && p.status !== "PAID" && p.amount !== event.amount) {
+      // Para alınmış olabilir ama tutar bizim kaydımızla uyuşmuyor: otomatik paket tanımlama, elle incelensin
+      console.error(`[odeme] tutar uyuşmazlığı: ödeme ${p.id}, kayıt ${p.amount} kuruş, sağlayıcı ${event.amount} kuruş`);
+      return { found: true, changed: false, status: p.status, paymentId: p.id, mismatch: true };
+    }
+  }
+  return settlePayment(event.providerRef, event.outcome, event.failureReason, { providerPaymentId: event.providerPaymentId });
 }

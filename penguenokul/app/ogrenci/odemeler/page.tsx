@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 const statusText: Record<string, string> = { PENDING: "Bekliyor", PAID: "Ödendi", FAILED: "Başarısız", REFUNDED: "İade edildi" };
 
-export default async function OgrenciOdemelerPage({ searchParams }: { searchParams: { odeme?: string } }) {
+export default async function OgrenciOdemelerPage({ searchParams }: { searchParams: { odeme?: string; hata?: string } }) {
   const { student } = await requireStudent();
 
   const payments = await prisma.payment.findMany({
@@ -31,6 +31,11 @@ export default async function OgrenciOdemelerPage({ searchParams }: { searchPara
       )}
       {justNow?.status === "FAILED" && (
         <p role="alert" className={`${styles.alert} ${styles.alertErr}`}>Ödeme tamamlanamadı. İstersen Paketler sayfasından tekrar deneyebilirsin.</p>
+      )}
+      {searchParams.hata === "dogrulama" && (
+        <p role="alert" className={`${styles.alert} ${styles.warn}`}>
+          Ödemen şu an doğrulanamadı. Kartından para çekildiyse birkaç dakika içinde hesabına tanımlanır. Tanımlanmazsa destek talebi açabilirsin.
+        </p>
       )}
       {justNow?.status === "PENDING" && (
         <p role="status" className={`${styles.alert} ${styles.warn}`}>Ödemen henüz onaylanmadı. Birkaç dakika içinde burada görünür; sayfayı yenileyebilirsin.</p>
