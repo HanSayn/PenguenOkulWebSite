@@ -1,13 +1,13 @@
 // Penguen Okul — veri modeli
-// Geliştirme: SQLite. Production'a geçerken provider'ı "postgresql" yap ve DATABASE_URL'i güncelle.
-// Not: Para alanları Int (kuruş cinsinden) tutulur; SQLite Decimal desteklemez.
+// PostgreSQL (geliştirme ve canlı aynı). Yerelde: `docker compose up -d` ile veritabanı başlar.
+// Not: Para alanları Int (kuruş cinsinden) tutulur, kayan nokta hatası olmaz.
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 

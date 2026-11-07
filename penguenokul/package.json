@@ -11,11 +11,15 @@
     "jobs": "tsx --env-file=.env scripts/run-jobs.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "db:up": "docker compose up -d",
+    "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",
     "bcryptjs": "^3.0.3",
+    "dotenv": "^18.0.9",
     "next": "14.2.35",
     "next-auth": "^5.0.0-beta.32",
     "nodemailer": "^8.0.11",
@@ -41,8 +45,5 @@
     "tsx": "^4.23.15",
     "typescript": "^5",
     "vitest": "^3.2.7"
-  },
-  "prisma": {
-    "seed": "tsx prisma/seed.ts"
   }
 }

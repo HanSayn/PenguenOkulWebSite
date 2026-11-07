@@ -1,36 +1,49 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Penguen Okul
 
-## Getting Started
+Online birebir özel ders platformu. Üç rol: **Öğrenci**, **Öğretmen**, **Admin**. Müsaitlik, ödeme, komisyon dağılımı ve hak ediş sistem tarafından yönetilir; öğrenci ve öğretmen yalnızca ders yapar.
 
-First, run the development server:
+Next.js 14 (App Router) · TypeScript · Prisma + PostgreSQL · NextAuth v5 · CSS Modules
+
+## Kurulum
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+cp .env.example .env          # AUTH_SECRET üret: openssl rand -base64 32
+docker compose up -d          # yerel PostgreSQL (ya da .env içindeki DATABASE_URL'i kendi veritabanına yönlendir)
+npx prisma migrate dev --name init
+npx prisma db seed            # demo hesaplar ve örnek veri
+npm run dev                   # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Demo hesaplar: `admin@penguenokul.local` / `Admin12345`, `ogretmen@penguenokul.local` ve `ogrenci@penguenokul.local` / `Demo12345`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+E-posta gönderimi için `SMTP_*` boşsa bağlantılar (şifre sıfırlama vb.) sunucu konsoluna yazılır.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Komutlar
 
-## Learn More
+| Komut | Ne yapar |
+|---|---|
+| `npm run dev` / `build` / `start` | Geliştirme, derleme, canlı mod |
+| `npm run typecheck` / `npm run lint` | Tip ve stil denetimi |
+| `npm test` | Birim testleri (Vitest) |
+| `npm run test:e2e` | Tarayıcı testleri (Playwright). Önce `npm run build && npm start` ve `npx prisma db seed`; canlı modda test ödemesi için `.env`'de `ALLOW_MOCK_PAYMENTS="true"` |
+| `npm run jobs` | Zamanlanmış işleri elle çalıştırır |
+| `npm run db:migrate` / `db:deploy` | Geliştirmede migration üretir / canlıda uygular |
 
-To learn more about Next.js, take a look at the following resources:
+## Canlıya alma kontrol listesi
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+1. **Veritabanı:** yönetilen PostgreSQL (Neon, Supabase, Railway…). `DATABASE_URL`'i ayarla, `npm run db:deploy` ile tabloları oluştur. `db seed` çalıştırma ya da yalnızca bir admin hesabı oluştur; demo şifrelerini canlıda kullanma.
+2. **Ortam değişkenleri:** `.env.example` içindeki hepsi. `AUTH_SECRET` yeni üretilmeli, `APP_URL` gerçek alan adı olmalı.
+3. **Ödeme:** `PAYMENT_PROVIDER` ve sağlayıcı anahtarları. Test ödemesi canlıda kapalıdır (`ALLOW_MOCK_PAYMENTS` boş bırak). Gerçek sağlayıcı bağlanmadan canlıya para alınamaz.
+4. **Zamanlanmış işler:** 5 dakikada bir `GET /api/cron/run` (`Authorization: Bearer $CRON_SECRET`). Vercel Cron ya da harici bir zamanlayıcı kullanılabilir. Hatırlatmalar, süresi dolan talepler, otomatik ders tamamlama ve hız sınırı temizliği buna bağlıdır.
+5. **E-posta:** SMTP bilgilerini gir (Resend, Brevo vb.).
+6. **Ters vekil:** hız sınırları istemci adresini `x-forwarded-for`'dan okur. Vercel/nginx gibi bir vekil arkasında çalıştır.
+7. **Yasal:** gizlilik/KVKK metni (`/gizlilik`) taslaktır, hukuk danışmanıyla tamamla. Ödeme belgesi yasal e-Arşiv faturası değildir; mali müşavirle netleştir.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Yapı
 
-## Deploy on Vercel
+- `app/` rol bazlı sayfalar (`ogrenci`, `ogretmen`, `admin`), herkese açık sayfalar, `api/` (kayıt, ödeme webhook'u, fatura PDF, cron, KVKK dışa aktarma)
+- `lib/` iş mantığı: rezervasyon (`booking`), ödeme (`payments/`, `payment-actions`), hak ediş (`earnings`, `payout-actions`), görüşme (`meeting/`), SMS (`sms/`), hız sınırı, KVKK (`account-data`), zamanlanmış işler (`jobs`)
+- `prisma/` şema ve seed · `tests/` birim ve tarayıcı testleri
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Para tutarları kuruş cinsinden `Int` saklanır. Saat dilimi İstanbul'a (UTC+3) sabittir.

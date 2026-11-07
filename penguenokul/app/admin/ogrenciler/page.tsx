@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
+import { insensitive } from "@/lib/db-compat";
 import { requireAdmin } from "@/lib/session";
 import { formatDay } from "@/lib/format";
 import styles from "@/components/ui/panel.module.css";
@@ -28,7 +29,7 @@ export default async function AdminOgrencilerPage({ searchParams }: { searchPara
 
   const students = (await prisma.studentProfile.findMany({
     where: q
-      ? { OR: [{ name: { contains: q } }, { user: { email: { contains: q } } }] }
+      ? { OR: [{ name: { contains: q, ...insensitive } }, { user: { email: { contains: q, ...insensitive } } }] }
       : {},
     orderBy: { user: { createdAt: "desc" } },
     take: 100,
