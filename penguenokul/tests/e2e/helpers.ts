@@ -16,9 +16,23 @@ export async function login(page: Page, email: string, password: string) {
 }
 
 // Her test kendi öğrencisini açar: testler birbirinin verisine bağlı olmaz.
-export async function registerStudent(request: APIRequestContext, label: string) {
+export async function registerStudent(request: APIRequestContext, label: string, name = "E2E Öğrenci") {
   const email = `${label}-${Date.now()}-${Math.floor(Math.random() * 1e6)}@e2e.test`;
-  const res = await request.post("/api/kayit", { data: { role: "STUDENT", name: "E2E Öğrenci", email, password: PASSWORD } });
+  const res = await request.post("/api/kayit", { data: { role: "STUDENT", name, email, password: PASSWORD } });
   expect(res.status(), await res.text()).toBe(201);
   return { email, password: PASSWORD };
+}
+
+// Her bağlam kendi (sahte) adresiyle gelir: hız sınırları testleri birbirine bağlamaz.
+export async function newUserContext(browser: import("@playwright/test").Browser) {
+  const r = () => Math.floor(Math.random() * 250) + 1;
+  return browser.newContext({ extraHTTPHeaders: { "x-forwarded-for": `10.${r()}.${r()}.${r()}` } });
+}
+
+export async function loginIn(browser: import("@playwright/test").Browser, email: string, password: string) {
+  const ctx = await newUserContext(browser);
+  const page = await ctx.newPage();
+  await login(page, email, password);
+  await page.waitForURL(/\/(ogrenci|ogretmen|admin)/);
+  return { ctx, page };
 }
