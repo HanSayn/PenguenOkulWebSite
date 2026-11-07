@@ -58,6 +58,7 @@ model User {
   emailVerifiedAt   DateTime?
   twoFactorSecret   String? // Admin TOTP (otplib)
   twoFactorEnabled  Boolean  @default(false)
+  deletedAt         DateTime? // KVKK silme talebi: hesap anonimleştirildi, giriş yapılamaz
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
@@ -461,6 +462,15 @@ model AuditLog {
   createdAt  DateTime @default(now())
 
   @@index([targetType, targetId])
+}
+
+// Hız sınırı sayaçları (sabit pencere). Veritabanında tutulur: sunucusuz/çok örnekli ortamlarda da çalışır.
+model RateLimit {
+  key     String   @id
+  count   Int
+  resetAt DateTime
+
+  @@index([resetAt])
 }
 
 // Anahtar-değer ayarlar: cancelWindowHours, defaultCommissionRate, trialLessonMinutes ...

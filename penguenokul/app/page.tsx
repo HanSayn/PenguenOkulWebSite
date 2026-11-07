@@ -26,9 +26,14 @@ const steps = [
   { n: "3", title: "Derse katıl", text: "Onaylanan dersin bağlantısı ders başlamadan 15 dakika önce açılır." },
 ];
 
-export default function LandingPage() {
+export default function LandingPage({ searchParams }: { searchParams: { hesap?: string } }) {
   return (
     <>
+      {searchParams.hesap === "silindi" && (
+        <p role="status" style={{ background: "var(--surface-2, #eef6ee)", textAlign: "center", padding: "12px 16px", margin: 0 }}>
+          Hesabın silindi. Verilerin anonimleştirildi.
+        </p>
+      )}
       <header className={styles.header}>
         <div className={`container ${styles.headerInner}`}>
           <Link href="/" className={styles.logo}>

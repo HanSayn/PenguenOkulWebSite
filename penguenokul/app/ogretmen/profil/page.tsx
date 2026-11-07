@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
 import { requireTeacher } from "@/lib/session";
 import ProfileForm from "./ProfileForm";
+import DataPanel from "@/components/account/DataPanel";
 import PhotoForm from "@/components/teachers/PhotoForm";
 import styles from "@/components/ui/panel.module.css";
 
@@ -38,6 +39,7 @@ export default async function OgretmenProfilPage() {
           subjects={subjects.map((s) => ({ id: s.id, name: s.name, selected: selected.has(s.id) }))}
         />
       </section>
+      <DataPanel />
     </>
   );
 }

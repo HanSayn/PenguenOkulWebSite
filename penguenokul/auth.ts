@@ -31,7 +31,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           where: { email },
           include: { teacher: { select: { status: true } } },
         });
-        if (!user) return null;
+        if (!user || user.deletedAt) return null;
 
         const ok = await bcrypt.compare(parsed.data.password, user.passwordHash);
         if (!ok) return null;

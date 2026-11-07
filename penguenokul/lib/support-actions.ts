@@ -1,5 +1,6 @@
 "use server";
 
+import { rateLimit, waitText } from "@/lib/rate-limit";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
@@ -27,6 +28,8 @@ export async function createTicketAction(_prev: SupportState, formData: FormData
   const message = clean(formData.get("message"));
   if (subject.length < 3 || subject.length > 120) return { error: "Konu 3-120 karakter olmalı." };
   if (message.length < 10 || message.length > 2000) return { error: "Mesaj 10-2000 karakter olmalı." };
+  const limited = await rateLimit(`ticket:${me.id}`, 5, 60 * 60);
+  if (!limited.ok) return { error: `Çok fazla talep açtın. ${waitText(limited.retryAfterSec)} sonra tekrar dene.` };
 
   const ticket = await prisma.$transaction(async (tx: Tx) => {
     const t = await tx.supportTicket.create({ data: { userId: me.id, subject } });
@@ -44,6 +47,8 @@ export async function replyTicketAction(_prev: SupportState, formData: FormData)
   const ticketId = clean(formData.get("ticketId"));
   const content = clean(formData.get("content"));
   if (content.length < 2 || content.length > 2000) return { error: "Mesaj 2-2000 karakter olmalı." };
+  const limited = await rateLimit(`ticket-reply:${me.id}`, 30, 60 * 60);
+  if (!limited.ok) return { error: `Çok hızlı yazıyorsun. ${waitText(limited.retryAfterSec)} sonra tekrar dene.` };
 
   const ticket = await prisma.supportTicket.findUnique({ where: { id: ticketId } });
   const isAdmin = me.role === "ADMIN";

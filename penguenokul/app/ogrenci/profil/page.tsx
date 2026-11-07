@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { requireStudent } from "@/lib/session";
 import ProfileForm from "./ProfileForm";
+import DataPanel from "@/components/account/DataPanel";
 import styles from "@/components/ui/panel.module.css";
 
 export const metadata: Metadata = { title: "Profil" };
@@ -25,6 +26,7 @@ export default async function OgrenciProfilPage() {
           smsConsent={student.smsConsent}
         />
       </section>
+      <DataPanel />
     </>
   );
 }

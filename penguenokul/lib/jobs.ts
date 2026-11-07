@@ -2,6 +2,7 @@ import { prisma, type Tx } from "@/lib/prisma";
 import { recordEarning } from "@/lib/earnings";
 import { sendSms } from "@/lib/sms";
 import { TIMEOUT_REASON } from "@/lib/payments/constants";
+import { purgeExpiredRateLimits } from "@/lib/rate-limit";
 import { notifyUser } from "@/lib/notify";
 import { formatDateTime, formatDay } from "@/lib/format";
 
@@ -17,6 +18,7 @@ export type JobReport = {
   packageWarnings: number;
   completedLessons: number;
   expiredPayments: number;
+  purgedRateLimits: number;
 };
 
 // ───────────── 1) Yanıtsız talepleri iptal et ─────────────
@@ -232,5 +234,7 @@ export async function runScheduledJobs(now = new Date()): Promise<JobReport> {
   const completedLessons = await settle("completePastLessons", () => completePastLessons(now));
   const expiredPayments = await settle("expirePendingPayments", () => expirePendingPayments(now));
 
-  return { expiredRequests, reminders, packageWarnings, completedLessons, expiredPayments };
+  const purgedRateLimits = await settle("purgeExpiredRateLimits", () => purgeExpiredRateLimits(now));
+
+  return { expiredRequests, reminders, packageWarnings, completedLessons, expiredPayments, purgedRateLimits };
 }

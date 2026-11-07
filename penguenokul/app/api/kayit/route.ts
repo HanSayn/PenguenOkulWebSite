@@ -2,8 +2,17 @@ import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { registerSchema } from "@/lib/validation";
+import { ipFromHeaders, rateLimit } from "@/lib/rate-limit";
 
 export async function POST(request: Request) {
+  const limited = await rateLimit(`register:ip:${ipFromHeaders(request.headers)}`, 10, 60 * 60);
+  if (!limited.ok) {
+    return NextResponse.json(
+      { error: "Çok fazla kayıt denemesi. Daha sonra tekrar dene." },
+      { status: 429, headers: { "Retry-After": String(limited.retryAfterSec) } }
+    );
+  }
+
   let body: unknown;
   try {
     body = await request.json();

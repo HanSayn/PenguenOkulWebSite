@@ -37,7 +37,10 @@ export default function GizlilikPage() {
 
       <h2>Haklarınız</h2>
       <p>
-        KVKK madde 11 kapsamında verilerine erişme, düzeltme, silme ve itiraz hakların vardır. Talepler için destek sayfandan bize yazabilirsin.
+        KVKK madde 11 kapsamında verilerine erişme, düzeltme, silme ve itiraz hakların vardır. Profil sayfandaki &ldquo;Verilerim ve hesabım&rdquo; bölümünden
+        verilerini JSON olarak indirebilir ve hesabını silebilirsin. Silme, kimliğini tanıtan bilgileri (ad, e-posta, telefon, veli bilgileri, mesajlar, destek kayıtları, fotoğraf) geri döndürülemez biçimde kaldırır.
+        Ödeme ve öğretmen hak ediş kayıtları, vergi ve muhasebe mevzuatı gereği yasal saklama süresi boyunca kimliksiz biçimde tutulur.
+        Başka talepler için destek sayfandan bize yazabilirsin.
       </p>
     </main>
   );

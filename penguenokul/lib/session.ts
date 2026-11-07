@@ -7,8 +7,12 @@ export async function requireStudent() {
   const session = await auth();
   if (!session?.user || session.user.role !== "STUDENT") redirect("/giris");
 
-  const student = await prisma.studentProfile.findUnique({ where: { userId: session.user.id } });
-  if (!student) redirect("/giris");
+  const student = await prisma.studentProfile.findUnique({
+    where: { userId: session.user.id },
+    include: { user: { select: { deletedAt: true } } },
+  });
+  // Hesabı silinmiş (KVKK) kullanıcının açık kalmış oturumu da geçersizdir
+  if (!student || student.user.deletedAt) redirect("/giris");
 
   return { user: session.user, student };
 }
@@ -23,9 +27,12 @@ export async function requireTeacher() {
   const session = await auth();
   if (!session?.user || session.user.role !== "TEACHER") redirect("/giris");
 
-  const teacher = await prisma.teacherProfile.findUnique({ where: { userId: session.user.id } });
-  // Askıya alınmış öğretmen oturumu açık kalmış olsa bile panele giremez
-  if (!teacher || teacher.status === "SUSPENDED") redirect("/giris");
+  const teacher = await prisma.teacherProfile.findUnique({
+    where: { userId: session.user.id },
+    include: { user: { select: { deletedAt: true } } },
+  });
+  // Askıya alınmış ya da hesabı silinmiş öğretmenin açık kalmış oturumu panele giremez
+  if (!teacher || teacher.status === "SUSPENDED" || teacher.user.deletedAt) redirect("/giris");
 
   return { user: session.user, teacher };
 }
