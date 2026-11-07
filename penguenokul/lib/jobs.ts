@@ -22,6 +22,7 @@ export type JobReport = {
   expiredPayments: number;
   reconciledPayments: number;
   purgedRateLimits: number;
+  purgedOldData: number;
 };
 
 // ───────────── 1) Yanıtsız talepleri iptal et ─────────────
@@ -240,6 +241,24 @@ async function reconcilePayments(now: Date): Promise<number> {
   return count;
 }
 
+// ───────────── Veri saklama süresi ─────────────
+
+const TOKEN_KEEP_DAYS = 7;
+const NOTIFICATION_KEEP_DAYS = 180;
+
+// Gereksiz birikmesin diye: süresi geçmiş/kullanılmış şifre sıfırlama bağlantıları ve eski okunmuş bildirimler silinir.
+// Ödeme, belge, hak ediş, ders ve mesaj kayıtlarına DOKUNULMAZ (mali/hukuki saklama yükümlülüğü ayrı karar gerektirir).
+export async function purgeOldData(now: Date): Promise<number> {
+  const day = 24 * 60 * MIN;
+  const tokens = await prisma.passwordResetToken.deleteMany({
+    where: { OR: [{ expiresAt: { lt: new Date(now.getTime() - TOKEN_KEEP_DAYS * day) } }, { usedAt: { lt: new Date(now.getTime() - TOKEN_KEEP_DAYS * day) } }] },
+  });
+  const notes = await prisma.notification.deleteMany({
+    where: { isRead: true, createdAt: { lt: new Date(now.getTime() - NOTIFICATION_KEEP_DAYS * day) } },
+  });
+  return tokens.count + notes.count;
+}
+
 // ───────────── Yarım kalan ödemeleri kapat ─────────────
 
 const PAYMENT_TIMEOUT_MIN = 120;
@@ -277,5 +296,7 @@ export async function runScheduledJobs(now = new Date()): Promise<JobReport> {
 
   const purgedRateLimits = await settle("purgeExpiredRateLimits", () => purgeExpiredRateLimits(now));
 
-  return { expiredRequests, reminders, packageWarnings, completedLessons, expiredPayments, reconciledPayments, purgedRateLimits };
+  const purgedOldData = await settle("purgeOldData", () => purgeOldData(now));
+
+  return { expiredRequests, reminders, packageWarnings, completedLessons, expiredPayments, reconciledPayments, purgedRateLimits, purgedOldData };
 }
